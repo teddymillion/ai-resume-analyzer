@@ -125,11 +125,6 @@
 }
 
 @layer utilities {
-  /* Smooth transitions */
-  .transition-smooth {
-    @apply transition-all duration-300 ease-out;
-  }
-
   /* Animation keyframes */
   @keyframes fadeIn {
     from {
@@ -177,11 +172,6 @@
   /* Scale in animation */
   .animate-scale-in {
     animation: scaleIn 0.3s ease-out;
-  }
-
-  /* Hover effects */
-  .card-hover {
-    @apply transition-smooth hover:shadow-lg hover:-translate-y-1;
   }
 
   /* Text balance for better line breaks */
