@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, Copy, Check } from 'lucide-react';
+import { Sparkles, Copy, Check, Loader } from 'lucide-react';
 import { ResumeSection } from '@/lib/resume-parser';
 import { Button } from '@/components/ui/button';
 import RewriteModal from '../rewrite-modal';
@@ -12,34 +12,40 @@ interface SuggestionsTabProps {
 
 export default function SuggestionsTab({ resumeSections }: SuggestionsTabProps) {
   const [selectedBullet, setSelectedBullet] = useState<string | null>(null);
-  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [improvedBullet, setImprovedBullet] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Get experience bullets
   const experienceSection = resumeSections.find((s) => s.type === 'experience');
   const experienceBullets = experienceSection?.bullets || [];
 
-  const handleCopy = (idx: number) => {
-    setCopiedIdx(idx);
-    setTimeout(() => setCopiedIdx(null), 2000);
-  };
+  const generateRewrite = async (bullet: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/ai/rewrite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ bullet }),
+      });
 
-  const generateRewrite = (bullet: string): string => {
-    // Mock rewrite suggestions - in real app, this would call an AI API
-    const rewrites: { [key: string]: string } = {
-      'managed team': 'Led and mentored a team of 5+ professionals, driving 40% improvement in project delivery',
-      'improved process': 'Optimized operational workflow, reducing processing time by 30% and increasing team productivity',
-      'worked on project': 'Spearheaded cross-functional project from conception to successful launch, delivering 25% value increase',
-      'responsible for': 'Owned full-stack responsibility for critical initiative, exceeding targets by 35%',
-      'helped develop': 'Architected and deployed innovative solution impacting 1000+ users',
-    };
-
-    for (const [pattern, rewrite] of Object.entries(rewrites)) {
-      if (bullet.toLowerCase().includes(pattern)) {
-        return rewrite;
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to generate rewrite');
       }
-    }
 
-    return `Enhanced ${bullet.toLowerCase()} with measurable impact on business results`;
+      const data = await response.json();
+      setImprovedBullet(data.rewritten);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
+      setError(errorMessage);
+      console.error('Rewrite error:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -71,11 +77,24 @@ export default function SuggestionsTab({ resumeSections }: SuggestionsTabProps) 
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setSelectedBullet(bullet)}
+                  onClick={async () => {
+                    setSelectedBullet(bullet);
+                    await generateRewrite(bullet);
+                  }}
                   className="flex-shrink-0 whitespace-nowrap"
+                  disabled={isLoading}
                 >
-                  <Sparkles className="w-4 h-4 mr-1" />
-                  Rewrite
+                  {isLoading ? (
+                    <>
+                      <Loader className="w-4 h-4 mr-1 animate-spin" />
+                      Rewriting...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-1" />
+                      Rewrite
+                    </>
+                  )}
                 </Button>
               </div>
             ))}
@@ -118,12 +137,25 @@ export default function SuggestionsTab({ resumeSections }: SuggestionsTabProps) 
       </div>
 
       {/* Rewrite Modal */}
-      {selectedBullet && (
+      {selectedBullet && improvedBullet && (
         <RewriteModal
           originalBullet={selectedBullet}
-          improvedBullet={generateRewrite(selectedBullet)}
-          onClose={() => setSelectedBullet(null)}
+          improvedBullet={improvedBullet}
+          onClose={() => {
+            setSelectedBullet(null);
+            setImprovedBullet(null);
+            setError(null);
+          }}
         />
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-sm text-red-900">
+            <span className="font-semibold">Error:</span> {error}
+          </p>
+        </div>
       )}
     </div>
   );
