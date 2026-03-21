@@ -1,9 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ParsedResume } from '@/lib/resume-parser';
 import { matchJobDescription, AnalysisResult } from '@/lib/analysis-engine';
 import { ResumeAnalyzerState } from '@/lib/types';
+import { useAuth } from '@/hooks/use-auth';
+import { Button } from '@/components/ui/button';
 import ResumeUpload from './resume-upload';
 import ResumePreview from './resume-preview';
 import AnalysisPanel from './analysis-panel';
@@ -12,6 +15,8 @@ import EmptyState from './empty-state';
 import ErrorState from './error-state';
 
 export default function ResumeAnalyzer() {
+  const router = useRouter();
+  const { user, signOut } = useAuth();
   const [state, setState] = useState<ResumeAnalyzerState>({
     resumeFile: null,
     parsedResume: null,
@@ -134,16 +139,33 @@ export default function ResumeAnalyzer() {
       <div className="relative z-10 min-h-screen">
         <div className="container mx-auto px-4 py-8 max-w-[1440px]">
         {/* Header */}
-        <div className="mb-8">
-          <p className="text-sm uppercase tracking-[0.2em] text-white/60">
-            Gemini-powered Career Intel
-          </p>
-          <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mt-2">
-            AI Resume Analyzer
-          </h1>
-          <p className="text-lg text-white/70 mt-3 max-w-2xl">
-            Get ATS-focused insights, skill gaps, and rewrite-ready suggestions in one smart scan.
-          </p>
+        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-[0.2em] text-white/60">
+              Gemini-powered Career Intel
+            </p>
+            <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mt-2">
+              AI Resume Analyzer
+            </h1>
+            <p className="text-lg text-white/70 mt-3 max-w-2xl">
+              Get ATS-focused insights, skill gaps, and rewrite-ready suggestions in one smart scan.
+            </p>
+          </div>
+          {user && (
+            <div className="flex flex-col items-start gap-2 md:items-end">
+              <span className="text-sm text-white/70">{user.email}</span>
+              <Button
+                variant="outline"
+                className="border-white/20 bg-white/10 text-white hover:bg-white/20"
+                onClick={async () => {
+                  await signOut();
+                  router.replace('/login');
+                }}
+              >
+                Log out
+              </Button>
+            </div>
+          )}
         </div>
 
         {state.stage === 'empty' && (

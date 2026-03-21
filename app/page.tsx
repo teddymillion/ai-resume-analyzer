@@ -1,5 +1,10 @@
 import ResumeAnalyzer from '@/components/resume-analyzer';
+import AuthGuard from '@/components/auth/auth-guard';
 
 export default function Home() {
-  return <ResumeAnalyzer />;
+  return (
+    <AuthGuard>
+      <ResumeAnalyzer />
+    </AuthGuard>
+  );
 }
