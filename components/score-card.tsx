@@ -40,10 +40,10 @@ export default function ScoreCard({ score, label, description, icon: Icon }: Sco
   };
 
   const getProgressColor = (s: number) => {
-    if (s >= 80) return 'bg-green-600';
-    if (s >= 60) return 'bg-blue-600';
-    if (s >= 40) return 'bg-amber-600';
-    return 'bg-red-600';
+    if (s >= 80) return 'text-green-600';
+    if (s >= 60) return 'text-blue-600';
+    if (s >= 40) return 'text-amber-600';
+    return 'text-red-600';
   };
 
   return (

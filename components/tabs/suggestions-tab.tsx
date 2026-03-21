@@ -81,7 +81,7 @@ export default function SuggestionsTab({ resumeSections }: SuggestionsTabProps) 
                     setSelectedBullet(bullet);
                     await generateRewrite(bullet);
                   }}
-                  className="flex-shrink-0 whitespace-nowrap"
+                  className="flex-shrink-0 whitespace-nowrap bg-slate-900 text-white border-slate-900 hover:bg-slate-800 hover:border-slate-800"
                   disabled={isLoading}
                 >
                   {isLoading ? (

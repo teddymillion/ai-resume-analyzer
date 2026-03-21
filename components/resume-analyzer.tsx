@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { parseResume, ParsedResume } from '@/lib/resume-parser';
-import { analyzeResume, matchJobDescription, AnalysisResult, KeywordMatchResult } from '@/lib/analysis-engine';
+import { ParsedResume } from '@/lib/resume-parser';
+import { matchJobDescription, AnalysisResult } from '@/lib/analysis-engine';
 import { ResumeAnalyzerState } from '@/lib/types';
 import ResumeUpload from './resume-upload';
 import ResumePreview from './resume-preview';
@@ -39,14 +39,25 @@ export default function ResumeAnalyzer() {
     setState({ ...state, loading: true, stage: 'loading', error: null });
 
     try {
-      // Simulate file reading and parsing
-      const text = await readFileAsText(file);
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/ai/analyze', {
+        method: 'POST',
+        body: formData,
+      });
 
-      // Parse resume
-      const parsed = parseResume(text);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        const message =
+          data.details && typeof data.details === 'string'
+            ? `${data.error || 'Failed to analyze resume'} (${data.details})`
+            : data.error || 'Failed to analyze resume';
+        throw new Error(message);
+      }
 
-      // Analyze resume
-      const analysis = analyzeResume(parsed);
+      const data = await response.json();
+      const parsed = data.parsedResume as ParsedResume;
+      const analysis = data.analysis as AnalysisResult;
 
       setState({
         ...state,
@@ -60,7 +71,8 @@ export default function ResumeAnalyzer() {
     } catch (err) {
       setState({
         ...state,
-        error: 'Failed to process file. Please try again.',
+        error:
+          err instanceof Error ? err.message : 'Failed to process file. Please try again.',
         stage: 'error',
         loading: false,
       });
@@ -100,18 +112,97 @@ export default function ResumeAnalyzer() {
     });
   };
 
+  const neuralPattern =
+    "url(\"data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='600' viewBox='0 0 900 600'%3E%3Crect width='900' height='600' fill='none'/%3E%3Cg stroke='%2365d8ff' stroke-width='1.2' opacity='0.35'%3E%3Cline x1='80' y1='120' x2='240' y2='80'/%3E%3Cline x1='80' y1='120' x2='220' y2='180'/%3E%3Cline x1='240' y1='80' x2='420' y2='120'/%3E%3Cline x1='220' y1='180' x2='420' y2='120'/%3E%3Cline x1='420' y1='120' x2='600' y2='90'/%3E%3Cline x1='420' y1='120' x2='600' y2='180'/%3E%3Cline x1='600' y1='90' x2='780' y2='140'/%3E%3Cline x1='600' y1='180' x2='780' y2='140'/%3E%3Cline x1='220' y1='180' x2='260' y2='320'/%3E%3Cline x1='260' y1='320' x2='420' y2='260'/%3E%3Cline x1='420' y1='260' x2='620' y2='320'/%3E%3Cline x1='620' y1='320' x2='780' y2='240'/%3E%3C/g%3E%3Cg fill='%23b9f2ff' opacity='0.55'%3E%3Ccircle cx='80' cy='120' r='6'/%3E%3Ccircle cx='240' cy='80' r='7'/%3E%3Ccircle cx='220' cy='180' r='7'/%3E%3Ccircle cx='420' cy='120' r='8'/%3E%3Ccircle cx='600' cy='90' r='7'/%3E%3Ccircle cx='600' cy='180' r='7'/%3E%3Ccircle cx='780' cy='140' r='8'/%3E%3Ccircle cx='260' cy='320' r='6'/%3E%3Ccircle cx='420' cy='260' r='7'/%3E%3Ccircle cx='620' cy='320' r='7'/%3E%3Ccircle cx='780' cy='240' r='6'/%3E%3C/g%3E%3C/svg%3E\")";
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
-      <div className="container mx-auto px-4 py-8 max-w-[1440px]">
+    <main className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.25),transparent_45%),radial-gradient(circle_at_20%_60%,rgba(34,197,94,0.18),transparent_40%),radial-gradient(circle_at_80%_20%,rgba(14,116,144,0.4),transparent_50%)]" />
+        <div
+          className="absolute inset-0 opacity-70"
+          style={{
+            backgroundImage: neuralPattern,
+            backgroundSize: '900px 600px',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/60 via-slate-950/75 to-slate-950" />
+      </div>
+
+      <div className="relative z-10 min-h-screen">
+        <div className="container mx-auto px-4 py-8 max-w-[1440px]">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 tracking-tight">
+          <p className="text-sm uppercase tracking-[0.2em] text-white/60">
+            Gemini-powered Career Intel
+          </p>
+          <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mt-2">
             AI Resume Analyzer
           </h1>
-          <p className="text-lg text-slate-600 mt-2">
-            Get intelligent feedback on your resume with ATS optimization, job matching, and smart suggestions.
+          <p className="text-lg text-white/70 mt-3 max-w-2xl">
+            Get ATS-focused insights, skill gaps, and rewrite-ready suggestions in one smart scan.
           </p>
         </div>
+
+        {state.stage === 'empty' && (
+          <section className="mb-10 grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-8 items-center rounded-2xl border border-white/10 bg-white/5 p-6 md:p-8 shadow-2xl">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.18em] text-white/70">
+                Smart Scan
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              </div>
+              <h2 className="text-2xl md:text-3xl font-semibold text-white mt-4">
+                One upload. Full resume intelligence.
+              </h2>
+              <p className="text-white/70 mt-3 max-w-xl">
+                We parse structure, highlight impact gaps, and surface ATS risks with a clean, recruiter-ready summary.
+              </p>
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm text-white/80">
+                <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3">
+                  ATS Readiness
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3">
+                  Skill Gaps
+                </div>
+                <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3">
+                  Bullet Rewrites
+                </div>
+              </div>
+              <div className="mt-6">
+                <ResumeUpload onFileSelect={handleFileUpload} loading={state.loading} />
+              </div>
+            </div>
+
+            <div className="relative">
+              <div className="absolute -inset-6 bg-gradient-to-br from-cyan-400/20 via-blue-500/10 to-transparent blur-2xl" />
+              <div className="relative overflow-hidden rounded-2xl border border-white/15 bg-slate-950/60 p-6">
+                <div className="flex items-center justify-between text-xs text-white/60">
+                  <span>AI Resume Analyzer</span>
+                  <span className="rounded-full border border-white/10 px-2 py-0.5">Live</span>
+                </div>
+                <div className="mt-4 space-y-3 text-sm text-white/80">
+                  <div className="h-2 w-3/4 rounded-full bg-white/10" />
+                  <div className="h-2 w-2/3 rounded-full bg-white/10" />
+                  <div className="h-2 w-5/6 rounded-full bg-white/10" />
+                  <div className="h-2 w-1/2 rounded-full bg-white/10" />
+                </div>
+
+                <div className="mt-6 rounded-xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-xs text-white/60">Signal Extraction</div>
+                  <div className="mt-3 grid grid-cols-3 gap-3">
+                    <div className="h-10 rounded-lg bg-cyan-500/20 animate-[float_5s_ease-in-out_infinite]" />
+                    <div className="h-10 rounded-lg bg-blue-500/20 animate-[float_6s_ease-in-out_infinite]" />
+                    <div className="h-10 rounded-lg bg-emerald-500/20 animate-[float_4.5s_ease-in-out_infinite]" />
+                  </div>
+                </div>
+
+                <div className="pointer-events-none absolute left-0 top-0 h-20 w-full bg-gradient-to-b from-cyan-400/30 to-transparent animate-[scan_3.5s_ease-in-out_infinite]" />
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Summary Bar - Show only when analysis is available */}
         {state.stage === 'success' && state.analysis && (
@@ -160,29 +251,14 @@ export default function ResumeAnalyzer() {
           </div>
         )}
 
-        {/* Upload Area - Always visible when not in success state */}
-        {state.stage !== 'success' && state.stage !== 'loading' && (
+        {/* Upload Area - Visible for non-empty, non-success states */}
+        {state.stage !== 'success' && state.stage !== 'loading' && state.stage !== 'empty' && (
           <ResumeUpload onFileSelect={handleFileUpload} loading={state.loading} />
         )}
+        </div>
       </div>
     </main>
   );
 }
 
-/**
- * Read file as text (simulating PDF/DOCX parsing)
- */
-async function readFileAsText(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        resolve(reader.result);
-      } else {
-        resolve('');
-      }
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsText(file);
-  });
-}
+// Gemini handles PDF/DOCX parsing on the server.

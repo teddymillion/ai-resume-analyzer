@@ -22,11 +22,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const model = process.env.GEMINI_MODEL;
+    if (!model) {
+      return NextResponse.json(
+        { error: 'Gemini model not configured. Set GEMINI_MODEL in .env.local.' },
+        { status: 500 },
+      );
+    }
+
     // Call Gemini API
-    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${model}:generateContent`, {
+
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
       },
       body: JSON.stringify({
         contents: [

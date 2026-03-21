@@ -29,7 +29,7 @@ export default function JobMatchTab({ jobMatchResult, onJobDescriptionChange }: 
           placeholder="Paste the job description here to analyze how well your resume matches..."
           value={jobDescription}
           onChange={(e) => handleChange(e.target.value)}
-          className="min-h-[200px] resize-none"
+          className="min-h-[200px] resize-none bg-white text-slate-900 placeholder:text-slate-400 border-slate-200 focus-visible:border-blue-500 focus-visible:ring-blue-500/30"
         />
         <p className="text-xs text-slate-600 mt-2">
           The analyzer will show which keywords from the job posting are present in your resume

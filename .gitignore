@@ -1,10 +1,10 @@
-# v0 sandbox internal files
-__v0_runtime_loader.js
-__v0_devtools.tsx
-__v0_jsx-dev-runtime.ts
+#  sandbox internal files
+_runtime_loader.js
+_devtools.tsx
+_jsx-dev-runtime.ts
 .npmrc
 .snowflake/
-.v0-trash/
+.-trash/
 .vercel/
 next.user-config.*
 
