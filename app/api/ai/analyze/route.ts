@@ -22,6 +22,7 @@ const ALLOWED_TYPES = new Set([
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
+const ALLOWED_EXTENSIONS = ['.pdf', '.docx'];
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,7 +41,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No resume file provided' }, { status: 400 });
     }
 
-    if (!ALLOWED_TYPES.has(file.type)) {
+    const lowerName = file.name.toLowerCase();
+    const isAllowedType =
+      ALLOWED_TYPES.has(file.type) || ALLOWED_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
+    if (!isAllowedType) {
       return NextResponse.json(
         { error: 'Invalid file type. Please upload a PDF or DOCX file.' },
         { status: 400 },

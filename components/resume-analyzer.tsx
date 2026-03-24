@@ -6,6 +6,7 @@ import { ParsedResume } from '@/lib/resume-parser';
 import { matchJobDescription, AnalysisResult } from '@/lib/analysis-engine';
 import { ResumeAnalyzerState } from '@/lib/types';
 import { useAuth } from '@/hooks/use-auth';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import ResumeUpload from './resume-upload';
 import ResumePreview from './resume-preview';
@@ -17,6 +18,7 @@ import ErrorState from './error-state';
 export default function ResumeAnalyzer() {
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const resumeBucket = process.env.NEXT_PUBLIC_SUPABASE_RESUME_BUCKET ?? 'resumes';
   const [state, setState] = useState<ResumeAnalyzerState>({
     resumeFile: null,
     parsedResume: null,
@@ -28,11 +30,23 @@ export default function ResumeAnalyzer() {
     stage: 'empty',
   });
 
+  const isAllowedFile = (file: File) => {
+    const validTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    const lowerName = file.name.toLowerCase();
+    return (
+      validTypes.includes(file.type) ||
+      lowerName.endsWith('.pdf') ||
+      lowerName.endsWith('.docx')
+    );
+  };
+
   // Handle file upload
   const handleFileUpload = async (file: File) => {
     // Validate file type
-    const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-    if (!validTypes.includes(file.type)) {
+    if (!isAllowedFile(file)) {
       setState({
         ...state,
         error: 'Invalid file type. Please upload a PDF or DOCX file.',
@@ -44,6 +58,14 @@ export default function ResumeAnalyzer() {
     setState({ ...state, loading: true, stage: 'loading', error: null });
 
     try {
+      // Ensure we have a logged-in user (AuthGuard should enforce this)
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError || !userData.user) {
+        throw new Error('You must be logged in to upload a resume.');
+      }
+
+      const storagePath = `${userData.user.id}/${crypto.randomUUID()}-${file.name}`;
+
       const formData = new FormData();
       formData.append('file', file);
       const response = await fetch('/api/ai/analyze', {
@@ -63,6 +85,64 @@ export default function ResumeAnalyzer() {
       const data = await response.json();
       const parsed = data.parsedResume as ParsedResume;
       const analysis = data.analysis as AnalysisResult;
+
+      // Upload original file to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from(resumeBucket)
+        .upload(storagePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type,
+        });
+
+      if (uploadError) {
+        if (uploadError.message?.toLowerCase().includes('bucket')) {
+          throw new Error(
+            `Storage bucket "${resumeBucket}" not found. Create it in Supabase Storage or set NEXT_PUBLIC_SUPABASE_RESUME_BUCKET.`
+          );
+        }
+        throw new Error(uploadError.message || 'Failed to upload resume file.');
+      }
+
+      // Save resume metadata + parsed text
+      const { data: resumeRow, error: resumeError } = await supabase
+        .from('resumes')
+        .insert({
+          user_id: userData.user.id,
+          file_name: file.name,
+          parsed_text: parsed.rawText ?? '',
+          file_path: storagePath,
+        })
+        .select('id')
+        .single();
+
+      if (resumeError || !resumeRow) {
+        // Best-effort cleanup if DB insert fails after upload
+        await supabase.storage.from(resumeBucket).remove([storagePath]);
+        throw new Error(resumeError?.message || 'Failed to save resume.');
+      }
+
+      // Save analysis results linked to resume
+      const { error: analysisError } = await supabase.from('analysis_results').insert({
+        resume_id: resumeRow.id,
+        overall_score: analysis.overallScore,
+        ats_score: analysis.atsScore,
+        feedback: {
+          strengths: analysis.strengths,
+          weaknesses: analysis.weaknesses,
+          missingSkills: analysis.missingSkills,
+          atsIssues: analysis.atsIssues,
+          atsSuggestions: analysis.atsSuggestions,
+          formattingQuality: analysis.formattingQuality,
+          keywordDensity: analysis.keywordDensity,
+        },
+      });
+
+      if (analysisError) {
+        // Best-effort cleanup if analysis insert fails
+        await supabase.storage.from(resumeBucket).remove([storagePath]);
+        throw new Error(analysisError.message || 'Failed to save analysis.');
+      }
 
       setState({
         ...state,
@@ -154,16 +234,25 @@ export default function ResumeAnalyzer() {
           {user && (
             <div className="flex flex-col items-start gap-2 md:items-end">
               <span className="text-sm text-white/70">{user.email}</span>
-              <Button
-                variant="outline"
-                className="border-white/20 bg-white/10 text-white hover:bg-white/20"
-                onClick={async () => {
-                  await signOut();
-                  router.replace('/login');
-                }}
-              >
-                Log out
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  className="border-white/20 bg-white/10 text-white hover:bg-white/20"
+                  onClick={() => router.push('/resumes')}
+                >
+                  My Resumes
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-white/20 bg-white/10 text-white hover:bg-white/20"
+                  onClick={async () => {
+                    await signOut();
+                    router.replace('/login');
+                  }}
+                >
+                  Log out
+                </Button>
+              </div>
             </div>
           )}
         </div>

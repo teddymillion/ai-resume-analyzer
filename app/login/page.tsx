@@ -56,7 +56,7 @@ export default function LoginPage() {
       <div className="rounded-2xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-semibold">Welcome back</h2>
+            <h2 className="text-2xl font-semibold">Welcome to AI CV Analyzer</h2>
             <p className="text-sm text-white/70 mt-1">Sign in to continue.</p>
           </div>
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/15 text-cyan-300">
