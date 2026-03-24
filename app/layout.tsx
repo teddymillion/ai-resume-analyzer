@@ -24,7 +24,16 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="font-sans antialiased">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <div className="min-h-screen flex flex-col">
+            <div className="flex-1">{children}</div>
+            <footer className="border-t border-white/10 bg-slate-950 text-white/60">
+              <div className="mx-auto max-w-6xl px-6 py-6 text-sm">
+                © 2026 T.BoB. Built by T.BoB. All rights reserved.
+              </div>
+            </footer>
+          </div>
+        </AuthProvider>
         <Analytics />
       </body>
     </html>
