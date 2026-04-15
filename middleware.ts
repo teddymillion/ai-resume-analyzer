@@ -7,13 +7,11 @@ export const config = {
   ],
 }
 
-// Routes that do NOT require authentication
 const PUBLIC_PATHS = new Set(['/login', '/signup', '/forgot-password', '/landing'])
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
-  // Allow public routes, API routes, and auth callbacks through without checking
   if (
     PUBLIC_PATHS.has(pathname) ||
     pathname.startsWith('/api') ||
@@ -53,9 +51,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    // Unauthenticated users hitting the root go to the landing page;
-    // all other protected routes go to login.
-    const dest = request.nextUrl.pathname === '/' ? '/landing' : '/login'
+    const dest = pathname === '/' ? '/landing' : '/login'
     return NextResponse.redirect(new URL(dest, request.url))
   }
 
