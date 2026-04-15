@@ -10,53 +10,86 @@ interface JobMatchTabProps {
   onJobDescriptionChange: (value: string) => void
 }
 
-export default function JobMatchTab({
-  jobMatchResult,
-  jobDescription,
-  onJobDescriptionChange,
-}: JobMatchTabProps) {
+function MatchMeter({ score }: { score: number }) {
+  const color = score >= 70 ? '#34d399' : score >= 45 ? '#22d3ee' : score >= 25 ? '#fbbf24' : '#f87171'
+  const label = score >= 70 ? 'Strong Match' : score >= 45 ? 'Moderate Match' : score >= 25 ? 'Weak Match' : 'Low Match'
+
+  // Arc: semicircle from 180° to 0°
+  const r = 52
+  const circ = Math.PI * r // half circumference
+  const offset = circ - (score / 100) * circ
+
   return (
-    <div className="space-y-6">
-      {/* Job Description Input */}
+    <div className="flex flex-col items-center py-4">
+      <div className="relative h-28 w-56 overflow-hidden">
+        <svg viewBox="0 0 120 64" className="h-full w-full">
+          {/* Track */}
+          <path
+            d="M 8 60 A 52 52 0 0 1 112 60"
+            fill="none"
+            stroke="rgba(255,255,255,0.06)"
+            strokeWidth="8"
+            strokeLinecap="round"
+          />
+          {/* Fill */}
+          <path
+            d="M 8 60 A 52 52 0 0 1 112 60"
+            fill="none"
+            stroke={color}
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray={`${circ}`}
+            strokeDashoffset={offset}
+            style={{ transition: 'stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)' }}
+          />
+        </svg>
+        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center">
+          <span className="text-4xl font-bold tabular-nums" style={{ color }}>{score}%</span>
+          <span className="text-xs font-medium" style={{ color }}>{label}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default function JobMatchTab({ jobMatchResult, jobDescription, onJobDescriptionChange }: JobMatchTabProps) {
+  return (
+    <div className="space-y-5">
+      {/* Input */}
       <div>
-        <label className="block text-sm font-semibold text-white mb-3">
+        <label className="mb-2 block text-xs font-semibold uppercase tracking-widest text-white/40">
           Paste Job Description
         </label>
         <Textarea
-          placeholder="Paste the job description here to analyze how well your resume matches..."
+          placeholder="Paste the full job description here…"
           value={jobDescription}
           onChange={(e) => onJobDescriptionChange(e.target.value)}
-          className="min-h-[180px] resize-none bg-white/5 border-white/10 text-white placeholder:text-white/30 focus-visible:border-cyan-400 focus-visible:ring-cyan-400/20"
+          className="min-h-[140px] resize-none border-white/[0.08] bg-white/[0.03] text-sm text-white placeholder:text-white/25 focus-visible:border-cyan-500/50 focus-visible:ring-0"
         />
-        <p className="text-xs text-white/50 mt-2">
-          The analyzer shows which keywords from the job posting appear in your resume.
+        <p className="mt-1.5 text-xs text-white/35">
+          We extract tech keywords and compare them against your resume.
         </p>
       </div>
 
-      {/* Match Results */}
+      {/* Results */}
       {jobMatchResult && (
         <>
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-4">Match Analysis</h3>
-            <div className="rounded-lg bg-white/5 border border-white/10 p-6 text-center mb-6">
-              <div className="text-4xl font-bold text-cyan-400 mb-2">
-                {jobMatchResult.matchScore}%
-              </div>
-              <p className="text-sm text-white/60">
-                Job Description Match ({jobMatchResult.matchedCount} of {jobMatchResult.totalJobKeywords} keywords)
-              </p>
-            </div>
-          </div>
+          <MatchMeter score={jobMatchResult.matchScore} />
+
+          <p className="text-center text-xs text-white/40">
+            {jobMatchResult.matchedCount} of {jobMatchResult.totalJobKeywords} keywords matched
+          </p>
 
           {jobMatchResult.matchedKeywords.length > 0 && (
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                <h4 className="font-semibold text-white">Matched Keywords</h4>
+              <div className="mb-2.5 flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                <h4 className="text-sm font-semibold text-white">Matched</h4>
+                <span className="ml-auto text-xs text-white/40">{jobMatchResult.matchedKeywords.length}</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {jobMatchResult.matchedKeywords.slice(0, 12).map((kw, idx) => (
-                  <span key={idx} className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm rounded-full">
+              <div className="flex flex-wrap gap-1.5">
+                {jobMatchResult.matchedKeywords.map((kw, i) => (
+                  <span key={i} className="rounded-full border border-emerald-500/20 bg-emerald-500/[0.08] px-2.5 py-1 text-xs text-emerald-300">
                     {kw}
                   </span>
                 ))}
@@ -66,16 +99,14 @@ export default function JobMatchTab({
 
           {jobMatchResult.missingKeywords.length > 0 && (
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <AlertCircle className="w-5 h-5 text-amber-400" />
-                <h4 className="font-semibold text-white">Missing Keywords</h4>
+              <div className="mb-2.5 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-400" />
+                <h4 className="text-sm font-semibold text-white">Missing</h4>
+                <span className="ml-auto text-xs text-white/40">{jobMatchResult.missingKeywords.length}</span>
               </div>
-              <p className="text-sm text-white/60 mb-3">
-                Add these keywords naturally to improve your match:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {jobMatchResult.missingKeywords.slice(0, 12).map((kw, idx) => (
-                  <span key={idx} className="px-3 py-1.5 bg-amber-500/10 border border-amber-500/20 text-amber-300 text-sm rounded-full">
+              <div className="flex flex-wrap gap-1.5">
+                {jobMatchResult.missingKeywords.map((kw, i) => (
+                  <span key={i} className="rounded-full border border-amber-500/20 bg-amber-500/[0.08] px-2.5 py-1 text-xs text-amber-300">
                     {kw}
                   </span>
                 ))}
@@ -83,26 +114,18 @@ export default function JobMatchTab({
             </div>
           )}
 
-          <div className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 p-4 flex gap-3">
-            <Info className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
-            <div className="text-sm text-cyan-100">
-              <p className="font-semibold mb-1">How to improve your match:</p>
-              <ul className="list-disc list-inside space-y-1 text-xs text-cyan-200/80">
-                <li>Add matched keywords naturally throughout your resume</li>
-                <li>Focus on role-specific terms in your experience descriptions</li>
-                <li>Ensure your skills section includes relevant keywords</li>
-              </ul>
-            </div>
+          <div className="rounded-xl border border-cyan-500/15 bg-cyan-500/[0.06] p-3.5 flex gap-2.5">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-cyan-400" />
+            <p className="text-xs text-cyan-200/80">
+              Add missing keywords naturally in your experience descriptions and skills section to improve your match score.
+            </p>
           </div>
         </>
       )}
 
       {!jobDescription && (
-        <div className="rounded-lg bg-white/5 border border-white/10 p-6 text-center">
-          <AlertCircle className="w-10 h-10 text-white/30 mx-auto mb-3" />
-          <p className="text-sm text-white/50">
-            Paste a job description above to see keyword matching
-          </p>
+        <div className="rounded-xl border border-dashed border-white/[0.08] p-8 text-center">
+          <p className="text-sm text-white/35">Paste a job description above to see your match score</p>
         </div>
       )}
     </div>

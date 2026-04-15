@@ -1,5 +1,6 @@
 'use client'
 
+import { useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from './use-auth'
 
@@ -8,8 +9,12 @@ export function useSignOut() {
   const router = useRouter()
   const { signOut } = useAuth()
 
-  return async () => {
-    await signOut()
+  return useCallback(async () => {
+    try {
+      await signOut()
+    } catch {
+      // Sign-out errors are non-critical — still redirect
+    }
     router.replace('/login')
-  }
+  }, [signOut, router])
 }

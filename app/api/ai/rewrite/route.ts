@@ -1,12 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 const schema = z.object({
   bullet: z.string().min(5, 'Bullet must be at least 5 characters').max(500, 'Bullet too long'),
 })
 
+const RATE_LIMIT = { limit: 10, windowMs: 60 * 1000 }
+
+function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for')
+  return forwarded?.split(',')[0]?.trim() ?? request.headers.get('x-real-ip') ?? 'unknown'
+}
+
 export async function POST(request: NextRequest) {
   try {
+    const clientIp = getClientIp(request)
+    const rateLimit = checkRateLimit(`rewrite:${clientIp}`, RATE_LIMIT)
+    
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429 }
+      )
+    }
+
     const body = await request.json()
     const parsed = schema.safeParse(body)
 

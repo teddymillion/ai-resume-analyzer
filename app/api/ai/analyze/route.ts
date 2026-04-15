@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { analyzeResume, type AnalysisResult } from '@/lib/analysis-engine'
 import { parseResume, type ParsedResume, type ResumeSection } from '@/lib/resume-parser'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+const RATE_LIMIT = { limit: 5, windowMs: 60 * 1000 }
+
+function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for')
+  return forwarded?.split(',')[0]?.trim() ?? request.headers.get('x-real-ip') ?? 'unknown'
+}
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 const ALLOWED_EXTENSIONS = ['.pdf', '.docx']
@@ -16,23 +22,13 @@ const ALLOWED_MIME_TYPES = new Set([
 const MAX_RETRIES = 3
 const BASE_DELAY_MS = 1500
 
-// ─── MIME helpers ─────────────────────────────────────────────────────────────
-
-/**
- * Browsers sometimes send an empty or wrong MIME type for DOCX files.
- * Always derive the MIME from the file extension so Gemini gets the right value.
- */
 function resolveMimeType(file: File): string {
   const lower = file.name.toLowerCase()
   if (lower.endsWith('.pdf')) return 'application/pdf'
-  if (lower.endsWith('.docx')) {
+  if (lower.endsWith('.docx'))
     return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-  }
-  // Fall back to whatever the browser reported
   return file.type || 'application/pdf'
 }
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 type GeminiAnalysisPayload = {
   rawText?: string
@@ -47,10 +43,18 @@ type GeminiAnalysisPayload = {
   analysis?: Partial<AnalysisResult>
 }
 
-// ─── Route Handler ────────────────────────────────────────────────────────────
-
 export async function POST(request: NextRequest) {
   try {
+    const clientIp = getClientIp(request)
+    const rateLimit = checkRateLimit(clientIp, RATE_LIMIT)
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.', retryAfter: Math.ceil(rateLimit.resetIn / 1000) },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil(rateLimit.resetIn / 1000)) } },
+      )
+    }
+
     const apiKey = process.env.GEMINI_API_KEY
     const model = process.env.GEMINI_MODEL
 
@@ -96,8 +100,9 @@ export async function POST(request: NextRequest) {
             ],
           }],
           generationConfig: {
-            // Forces Gemini to output raw JSON — no markdown fences, no preamble
-            responseMimeType: 'application/json',
+            // Do NOT set responseMimeType — Gemini 2.5 Flash ignores it for
+            // multimodal requests and returns an empty text field when it is set.
+            // Instead we ask for JSON in the prompt and parse it ourselves.
             maxOutputTokens: 8192,
             temperature: 0.1,
           },
@@ -107,25 +112,33 @@ export async function POST(request: NextRequest) {
 
     if (!geminiResponse.ok) {
       const errorText = await geminiResponse.text()
-      console.error('[analyze] Gemini error after retries:', errorText)
+      console.error('[analyze] Gemini error:', geminiResponse.status, errorText.slice(0, 400))
       return NextResponse.json(
-        {
-          error: 'Failed to analyze resume with Gemini',
-          details: `Gemini API ${geminiResponse.status}: ${errorText}`,
-        },
+        { error: 'Failed to analyze resume with Gemini', details: `Gemini API ${geminiResponse.status}: ${errorText.slice(0, 200)}` },
         { status: 500 },
       )
     }
 
     const data = await geminiResponse.json()
-    const rawTextResponse: string = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
 
-    console.log('[analyze] Gemini raw response (first 300 chars):', rawTextResponse.slice(0, 300))
+    // Extract the text from wherever Gemini put it
+    const rawTextResponse: string = extractGeminiText(data)
+
+    console.log('[analyze] Gemini text length:', rawTextResponse.length)
+    console.log('[analyze] Gemini text preview:', rawTextResponse.slice(0, 200))
+
+    if (!rawTextResponse) {
+      console.error('[analyze] Empty text from Gemini. Full response:', JSON.stringify(data).slice(0, 600))
+      return NextResponse.json(
+        { error: 'Gemini returned an empty response. The model may not support this file type. Try a PDF.' },
+        { status: 500 },
+      )
+    }
 
     const parsedPayload = extractJson(rawTextResponse)
 
     if (!parsedPayload) {
-      console.error('[analyze] Could not extract JSON from response:', rawTextResponse.slice(0, 500))
+      console.error('[analyze] Could not parse JSON. Raw text:', rawTextResponse.slice(0, 600))
       return NextResponse.json(
         { error: 'Gemini returned an unexpected response format. Please try again.' },
         { status: 500 },
@@ -148,6 +161,49 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// ─── Extract text from any Gemini response shape ─────────────────────────────
+
+// Gemini can return the content in different places depending on the model
+// version and whether responseMimeType was set. Check all known locations.
+function extractGeminiText(data: unknown): string {
+  if (!data || typeof data !== 'object') return ''
+  const d = data as Record<string, unknown>
+
+  // Shape 1: candidates[0].content.parts[0].text  (standard generateContent)
+  const candidates = d.candidates
+  if (Array.isArray(candidates) && candidates.length > 0) {
+    const first = candidates[0] as Record<string, unknown>
+    const content = first?.content as Record<string, unknown> | undefined
+    const parts = content?.parts
+    if (Array.isArray(parts) && parts.length > 0) {
+      const part = parts[0] as Record<string, unknown>
+      if (typeof part?.text === 'string' && part.text.trim()) {
+        return part.text
+      }
+      // Sometimes all parts need to be joined
+      const joined = parts
+        .map((p) => (typeof (p as Record<string, unknown>).text === 'string' ? (p as Record<string, unknown>).text : ''))
+        .join('')
+      if (joined.trim()) return joined
+    }
+  }
+
+  // Shape 2: direct text field at root (some streaming/preview APIs)
+  if (typeof d.text === 'string' && d.text.trim()) return d.text
+
+  // Shape 3: content.parts[0].text at root
+  const rootContent = d.content as Record<string, unknown> | undefined
+  if (rootContent) {
+    const parts = rootContent.parts
+    if (Array.isArray(parts) && parts.length > 0) {
+      const part = parts[0] as Record<string, unknown>
+      if (typeof part?.text === 'string') return part.text
+    }
+  }
+
+  return ''
+}
+
 // ─── Retry Logic ──────────────────────────────────────────────────────────────
 
 async function fetchWithRetry(url: string, init: RequestInit, attempt = 0): Promise<Response> {
@@ -167,7 +223,7 @@ async function fetchWithRetry(url: string, init: RequestInit, attempt = 0): Prom
 // ─── Prompt ───────────────────────────────────────────────────────────────────
 
 function buildPrompt(): string {
-  return `You are an expert resume analyzer. Analyze the provided resume file and return a JSON object.
+  return `You are an expert resume analyzer. Analyze the provided resume file and return ONLY a valid JSON object with no markdown, no code fences, no explanation — just the raw JSON.
 
 The JSON must follow this exact structure:
 {
@@ -195,6 +251,7 @@ The JSON must follow this exact structure:
 }
 
 Rules:
+- Return ONLY the JSON object. No text before or after it.
 - Extract ALL text from the resume into rawText
 - Identify every section and classify it correctly
 - skills: list every technical and soft skill mentioned
@@ -213,25 +270,19 @@ Rules:
 
 // ─── JSON Extraction ──────────────────────────────────────────────────────────
 
-/**
- * Robustly extracts a JSON object from Gemini's response.
- * Handles: raw JSON, markdown fences, preamble text, truncated responses,
- * and large payloads with special characters inside string values.
- */
 function extractJson(raw: string): GeminiAnalysisPayload | null {
   if (!raw || typeof raw !== 'string') return null
 
-  // Build a list of candidate strings to try parsing, from most to least clean
   const candidates: string[] = []
 
-  // 1. Raw trimmed (best case — responseMimeType gave us pure JSON)
+  // 1. Raw trimmed
   candidates.push(raw.trim())
 
-  // 2. Strip markdown fences anywhere in the string
+  // 2. Strip markdown fences
   const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/i)
   if (fenceMatch?.[1]) candidates.push(fenceMatch[1].trim())
 
-  // 3. Extract from first { to last } — handles any leading/trailing prose
+  // 3. First { to last }
   const firstBrace = raw.indexOf('{')
   const lastBrace = raw.lastIndexOf('}')
   if (firstBrace !== -1 && lastBrace > firstBrace) {
@@ -240,38 +291,30 @@ function extractJson(raw: string): GeminiAnalysisPayload | null {
 
   for (const candidate of candidates) {
     if (!candidate) continue
+    // Try raw parse
     try {
       const parsed = JSON.parse(candidate)
-      if (parsed && typeof parsed === 'object' && ('rawText' in parsed || 'analysis' in parsed || 'sections' in parsed)) {
-        return parsed as GeminiAnalysisPayload
-      }
-    } catch {
-      // JSON.parse failed — the string likely has unescaped control characters
-      // inside a value (common when Gemini embeds raw resume text with newlines).
-      // Sanitise the string values and retry.
-      try {
-        const sanitised = sanitiseJsonString(candidate)
-        const parsed = JSON.parse(sanitised)
-        if (parsed && typeof parsed === 'object' && ('rawText' in parsed || 'analysis' in parsed || 'sections' in parsed)) {
-          return parsed as GeminiAnalysisPayload
-        }
-      } catch {
-        // try next candidate
-      }
-    }
+      if (isValidPayload(parsed)) return parsed as GeminiAnalysisPayload
+    } catch { /* fall through */ }
+    // Try sanitised parse
+    try {
+      const parsed = JSON.parse(sanitiseJsonString(candidate))
+      if (isValidPayload(parsed)) return parsed as GeminiAnalysisPayload
+    } catch { /* try next candidate */ }
   }
 
   return null
 }
 
-/**
- * Fixes the most common reason JSON.parse fails on Gemini output:
- * literal newlines, tabs, and carriage returns inside JSON string values.
- * JSON strings must use \n, \t, \r — not the actual control characters.
- */
+function isValidPayload(parsed: unknown): boolean {
+  return (
+    parsed !== null &&
+    typeof parsed === 'object' &&
+    ('rawText' in parsed || 'analysis' in parsed || 'sections' in parsed)
+  )
+}
+
 function sanitiseJsonString(raw: string): string {
-  // Replace literal control characters inside JSON string values only.
-  // We walk char-by-char tracking whether we are inside a string.
   let result = ''
   let inString = false
   let i = 0
@@ -281,7 +324,6 @@ function sanitiseJsonString(raw: string): string {
 
     if (inString) {
       if (ch === '\\') {
-        // Already-escaped sequence — copy both chars verbatim
         result += ch + (raw[i + 1] ?? '')
         i += 2
         continue

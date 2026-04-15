@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import type { AnalysisResult, KeywordMatchResult } from '@/lib/analysis-engine'
 import type { ResumeSection } from '@/lib/resume-parser'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import OverviewTab from './tabs/overview-tab'
 import SkillsTab from './tabs/skills-tab'
 import JobMatchTab from './tabs/job-match-tab'
@@ -16,18 +15,18 @@ interface AnalysisPanelProps {
   jobDescription: string
   onJobDescriptionChange: (value: string) => void
   resumeSections: ResumeSection[]
+  detectedSkills?: string[]
 }
 
-const TAB_TRIGGER_CLASS =
-  'rounded-none border-0 text-white/60 data-[state=active]:bg-white/5 data-[state=active]:border-b-2 data-[state=active]:border-cyan-400 data-[state=active]:text-cyan-300'
-
 const TABS = [
-  { value: 'overview', label: 'Overview' },
-  { value: 'skills', label: 'Skills' },
-  { value: 'job-match', label: 'Job Match' },
-  { value: 'ats', label: 'ATS' },
-  { value: 'suggestions', label: 'AI Suggestions' },
-]
+  { id: 'overview',     label: 'Overview' },
+  { id: 'skills',       label: 'Skills' },
+  { id: 'job-match',    label: 'Job Match' },
+  { id: 'ats',          label: 'ATS' },
+  { id: 'suggestions',  label: 'AI Rewrites' },
+] as const
+
+type TabId = typeof TABS[number]['id']
 
 export default function AnalysisPanel({
   analysis,
@@ -35,42 +34,46 @@ export default function AnalysisPanel({
   jobDescription,
   onJobDescriptionChange,
   resumeSections,
+  detectedSkills = [],
 }: AnalysisPanelProps) {
-  const [activeTab, setActiveTab] = useState('overview')
+  const [active, setActive] = useState<TabId>('overview')
 
   return (
-    <div className="animate-fade-in rounded-xl border border-white/10 bg-white/5 overflow-hidden">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="w-full bg-white/5 border-b border-white/10 rounded-none p-0 h-auto">
+    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] overflow-hidden">
+      {/* Tab bar — scrollable on mobile */}
+      <div className="border-b border-white/[0.08] px-4 pt-4">
+        <div className="flex gap-1 overflow-x-auto pb-px scrollbar-none">
           {TABS.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value} className={TAB_TRIGGER_CLASS}>
+            <button
+              key={tab.id}
+              onClick={() => setActive(tab.id)}
+              className={[
+                'shrink-0 rounded-lg px-3.5 py-2 text-xs font-medium transition-all duration-150',
+                active === tab.id
+                  ? 'bg-white/10 text-white shadow-sm'
+                  : 'text-white/50 hover:text-white/80 hover:bg-white/5',
+              ].join(' ')}
+            >
               {tab.label}
-            </TabsTrigger>
+            </button>
           ))}
-        </TabsList>
-
-        <div className="p-6">
-          <TabsContent value="overview" className="m-0">
-            <OverviewTab analysis={analysis} />
-          </TabsContent>
-          <TabsContent value="skills" className="m-0">
-            <SkillsTab analysis={analysis} />
-          </TabsContent>
-          <TabsContent value="job-match" className="m-0">
-            <JobMatchTab
-              jobMatchResult={jobMatchResult}
-              jobDescription={jobDescription}
-              onJobDescriptionChange={onJobDescriptionChange}
-            />
-          </TabsContent>
-          <TabsContent value="ats" className="m-0">
-            <ATSTab analysis={analysis} />
-          </TabsContent>
-          <TabsContent value="suggestions" className="m-0">
-            <SuggestionsTab resumeSections={resumeSections} />
-          </TabsContent>
         </div>
-      </Tabs>
+      </div>
+
+      {/* Tab content */}
+      <div className="p-5 sm:p-6">
+        {active === 'overview' && <OverviewTab analysis={analysis} />}
+        {active === 'skills' && <SkillsTab analysis={analysis} detectedSkills={detectedSkills} />}
+        {active === 'job-match' && (
+          <JobMatchTab
+            jobMatchResult={jobMatchResult}
+            jobDescription={jobDescription}
+            onJobDescriptionChange={onJobDescriptionChange}
+          />
+        )}
+        {active === 'ats' && <ATSTab analysis={analysis} />}
+        {active === 'suggestions' && <SuggestionsTab resumeSections={resumeSections} />}
+      </div>
     </div>
   )
 }

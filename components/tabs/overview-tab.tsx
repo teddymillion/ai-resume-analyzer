@@ -1,46 +1,95 @@
 'use client'
 
-import { AlertCircle, CheckCircle2, TrendingUp } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Zap } from 'lucide-react'
 import type { AnalysisResult } from '@/lib/analysis-engine'
 
-const QUALITY_STYLES: Record<AnalysisResult['formattingQuality'], string> = {
-  excellent: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20',
-  good: 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/20',
-  fair: 'bg-amber-500/15 text-amber-300 border border-amber-500/20',
-  poor: 'bg-red-500/15 text-red-300 border border-red-500/20',
+const QUALITY_CONFIG = {
+  excellent: { label: 'Excellent', cls: 'text-emerald-400 bg-emerald-400/10 ring-emerald-400/20' },
+  good:      { label: 'Good',      cls: 'text-cyan-400 bg-cyan-400/10 ring-cyan-400/20' },
+  fair:      { label: 'Fair',      cls: 'text-amber-400 bg-amber-400/10 ring-amber-400/20' },
+  poor:      { label: 'Needs Work',cls: 'text-red-400 bg-red-400/10 ring-red-400/20' },
+}
+
+function ScoreBar({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between text-xs">
+        <span className="text-white/60">{label}</span>
+        <span className="font-semibold text-white">{value}/100</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.06]">
+        <div
+          className="h-full rounded-full transition-all duration-700 ease-out"
+          style={{ width: `${value}%`, background: color }}
+        />
+      </div>
+    </div>
+  )
 }
 
 export default function OverviewTab({ analysis }: { analysis: AnalysisResult }) {
+  const qc = QUALITY_CONFIG[analysis.formattingQuality]
+
+  const densityColor =
+    analysis.keywordDensity >= 1 && analysis.keywordDensity <= 4
+      ? '#34d399'
+      : analysis.keywordDensity > 6
+      ? '#f87171'
+      : '#fbbf24'
+
+  const densityLabel =
+    analysis.keywordDensity >= 1 && analysis.keywordDensity <= 4
+      ? 'Optimal for ATS'
+      : analysis.keywordDensity > 6
+      ? 'Over-optimized'
+      : 'Too low — add keywords'
+
   return (
     <div className="space-y-6">
-      {/* Formatting Quality */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="w-5 h-5 text-white/70" />
-          <h3 className="text-lg font-semibold text-white">Resume Quality</h3>
+      {/* Score bars */}
+      <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-widest text-white/40">Score Breakdown</p>
+          <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${qc.cls}`}>
+            {qc.label}
+          </span>
         </div>
-        <div className="rounded-lg bg-white/5 border border-white/10 p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-white/70">Formatting Quality</span>
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${QUALITY_STYLES[analysis.formattingQuality]}`}>
-              {analysis.formattingQuality}
-            </span>
-          </div>
+        <ScoreBar label="Overall Score" value={analysis.overallScore} color="#22d3ee" />
+        <ScoreBar label="ATS Score" value={analysis.atsScore} color="#34d399" />
+      </div>
+
+      {/* Keyword density */}
+      <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Zap className="h-4 w-4 text-white/40" />
+          <p className="text-xs font-semibold uppercase tracking-widest text-white/40">Keyword Density</p>
+        </div>
+        <div className="flex items-end gap-3">
+          <span className="text-3xl font-bold tabular-nums" style={{ color: densityColor }}>
+            {analysis.keywordDensity}%
+          </span>
+          <span className="mb-1 text-xs text-white/50">{densityLabel}</span>
+        </div>
+        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+          <div
+            className="h-full rounded-full transition-all duration-700"
+            style={{ width: `${Math.min(analysis.keywordDensity * 12, 100)}%`, background: densityColor }}
+          />
         </div>
       </div>
 
       {/* Strengths */}
       {analysis.strengths.length > 0 && (
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-            <h3 className="text-lg font-semibold text-white">Strengths</h3>
+          <div className="mb-3 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+            <h3 className="text-sm font-semibold text-white">Strengths</h3>
           </div>
           <ul className="space-y-2">
-            {analysis.strengths.map((strength, idx) => (
-              <li key={idx} className="flex gap-3 p-3 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span className="text-sm text-emerald-100">{strength}</span>
+            {analysis.strengths.map((s, i) => (
+              <li key={i} className="flex gap-3 rounded-lg border border-emerald-500/15 bg-emerald-500/[0.07] p-3">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                <span className="text-sm text-emerald-100/90">{s}</span>
               </li>
             ))}
           </ul>
@@ -50,43 +99,20 @@ export default function OverviewTab({ analysis }: { analysis: AnalysisResult }) 
       {/* Weaknesses */}
       {analysis.weaknesses.length > 0 && (
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <AlertCircle className="w-5 h-5 text-amber-400" />
-            <h3 className="text-lg font-semibold text-white">Areas for Improvement</h3>
+          <div className="mb-3 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-400" />
+            <h3 className="text-sm font-semibold text-white">Areas to Improve</h3>
           </div>
           <ul className="space-y-2">
-            {analysis.weaknesses.map((weakness, idx) => (
-              <li key={idx} className="flex gap-3 p-3 bg-amber-500/10 rounded-lg border border-amber-500/20">
-                <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <span className="text-sm text-amber-100">{weakness}</span>
+            {analysis.weaknesses.map((w, i) => (
+              <li key={i} className="flex gap-3 rounded-lg border border-amber-500/15 bg-amber-500/[0.07] p-3">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                <span className="text-sm text-amber-100/90">{w}</span>
               </li>
             ))}
           </ul>
         </div>
       )}
-
-      {/* Keyword Density */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="w-5 h-5 text-white/70" />
-          <h3 className="text-lg font-semibold text-white">Keyword Density</h3>
-        </div>
-        <div className="rounded-lg bg-white/5 border border-white/10 p-4">
-          <div className="flex items-end gap-4">
-            <div>
-              <p className="text-3xl font-bold text-cyan-400">{analysis.keywordDensity}%</p>
-              <p className="text-xs text-white/50 mt-1">Keywords per word count</p>
-            </div>
-            <p className="text-xs text-white/60 flex-1">
-              {analysis.keywordDensity >= 1 && analysis.keywordDensity <= 4
-                ? 'Optimal keyword density for ATS'
-                : analysis.keywordDensity > 6
-                ? 'High density — avoid over-optimization'
-                : 'Low density — add more relevant keywords'}
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

@@ -9,25 +9,18 @@ const _geist = Geist({ subsets: ['latin'] })
 const _geistMono = Geist_Mono({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'AI Resume Analyzer',
-  description: 'Analyze your resume with AI. Get ATS optimization, job matching and smart suggestions to land your dream job.',
+  title: 'ResumeAI — AI-Powered Resume Analyzer',
+  description: 'Get ATS scores, skill gap analysis, job matching, and AI bullet rewrites. Powered by Gemini.',
   icons: { icon: '/favicon.ico' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="font-sans antialiased">
+      <body className="font-sans antialiased bg-slate-950 text-white">
         <ErrorBoundary>
           <AuthProvider>
-            <div className="min-h-screen flex flex-col">
-              <div className="flex-1">{children}</div>
-              <footer className="border-t border-white/10 bg-slate-950 text-white/60">
-                <div className="mx-auto max-w-6xl px-6 py-6 text-sm">
-                  © {new Date().getFullYear()} AI Resume Analyzer. All rights reserved.
-                </div>
-              </footer>
-            </div>
+            {children}
           </AuthProvider>
         </ErrorBoundary>
         <Analytics />
