@@ -1,82 +1,74 @@
-'use client';
+'use client'
 
-import { useEffect, useState } from 'react';
-import { LucideIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react'
 
 interface ScoreCardProps {
-  score: number;
-  label: string;
-  description: string;
-  icon: LucideIcon;
+  score: number
+  label: string
+  description: string
 }
 
-export default function ScoreCard({ score, label, description, icon: Icon }: ScoreCardProps) {
-  const [displayScore, setDisplayScore] = useState(0);
+function getScoreColor(s: number): string {
+  if (s >= 80) return 'text-emerald-400'
+  if (s >= 60) return 'text-cyan-400'
+  if (s >= 40) return 'text-amber-400'
+  return 'text-red-400'
+}
 
-  // Animate score from 0 to final value
+function getStrokeColor(s: number): string {
+  if (s >= 80) return '#34d399' // emerald-400
+  if (s >= 60) return '#22d3ee' // cyan-400
+  if (s >= 40) return '#fbbf24' // amber-400
+  return '#f87171' // red-400
+}
+
+export default function ScoreCard({ score, label, description }: ScoreCardProps) {
+  const [displayScore, setDisplayScore] = useState(0)
+  const rafRef = useRef<number | null>(null)
+
   useEffect(() => {
-    const duration = 800;
-    const startTime = Date.now();
+    const duration = 800
+    const startTime = Date.now()
 
-    const animateScore = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      setDisplayScore(Math.round(progress * score));
+    const animate = () => {
+      const elapsed = Date.now() - startTime
+      const progress = Math.min(elapsed / duration, 1)
+      setDisplayScore(Math.round(progress * score))
 
       if (progress < 1) {
-        requestAnimationFrame(animateScore);
+        rafRef.current = requestAnimationFrame(animate)
       }
-    };
+    }
 
-    animateScore();
-  }, [score]);
+    rafRef.current = requestAnimationFrame(animate)
 
-  // Determine color based on score
-  const getScoreColor = (s: number) => {
-    if (s >= 80) return 'text-green-600';
-    if (s >= 60) return 'text-blue-600';
-    if (s >= 40) return 'text-amber-600';
-    return 'text-red-600';
-  };
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+    }
+  }, [score])
 
-  const getProgressColor = (s: number) => {
-    if (s >= 80) return 'text-green-600';
-    if (s >= 60) return 'text-blue-600';
-    if (s >= 40) return 'text-amber-600';
-    return 'text-red-600';
-  };
+  const circumference = 2 * Math.PI * 45 // r=45 → 282.74
+  const dashOffset = circumference - (displayScore / 100) * circumference
 
   return (
-    <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-      {/* Circular Progress */}
+    <div className="rounded-xl border border-white/10 bg-white/5 p-6 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+      {/* Circular progress */}
       <div className="relative w-20 h-20 mb-4">
-        <svg
-          className="w-full h-full transform -rotate-90"
-          viewBox="0 0 100 100"
-        >
-          {/* Background circle */}
+        <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="8" />
           <circle
             cx="50"
             cy="50"
             r="45"
             fill="none"
-            stroke="#e2e8f0"
+            stroke={getStrokeColor(displayScore)}
             strokeWidth="8"
-          />
-          {/* Progress circle */}
-          <circle
-            cx="50"
-            cy="50"
-            r="45"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="8"
-            strokeDasharray={`${(displayScore / 100) * 282.7} 282.7`}
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
             strokeLinecap="round"
-            className={`transition-all duration-300 ${getProgressColor(displayScore)}`}
+            className="transition-all duration-100"
           />
         </svg>
-        {/* Score text */}
         <div className="absolute inset-0 flex items-center justify-center">
           <span className={`text-2xl font-bold ${getScoreColor(displayScore)}`}>
             {displayScore}
@@ -84,9 +76,8 @@ export default function ScoreCard({ score, label, description, icon: Icon }: Sco
         </div>
       </div>
 
-      {/* Label and description */}
-      <p className="text-sm font-semibold text-slate-900 mb-1">{label}</p>
-      <p className="text-xs text-slate-600">{description}</p>
+      <p className="text-sm font-semibold text-white mb-1">{label}</p>
+      <p className="text-xs text-white/60">{description}</p>
     </div>
-  );
+  )
 }

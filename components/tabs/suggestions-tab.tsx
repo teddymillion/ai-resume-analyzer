@@ -1,93 +1,94 @@
-'use client';
+'use client'
 
-import { useState } from 'react';
-import { Sparkles, Copy, Check, Loader } from 'lucide-react';
-import { ResumeSection } from '@/lib/resume-parser';
-import { Button } from '@/components/ui/button';
-import RewriteModal from '../rewrite-modal';
+import { useState } from 'react'
+import { Sparkles, Loader } from 'lucide-react'
+import type { ResumeSection } from '@/lib/resume-parser'
+import { Button } from '@/components/ui/button'
+import RewriteModal from '../rewrite-modal'
 
 interface SuggestionsTabProps {
-  resumeSections: ResumeSection[];
+  resumeSections: ResumeSection[]
 }
 
+const WRITING_TIPS = [
+  'Start with strong action verbs (Led, Implemented, Optimized, etc.)',
+  'Include quantifiable results when possible (%, $, numbers)',
+  'Focus on impact and business value, not just tasks',
+  'Keep bullets concise but descriptive (1–2 lines)',
+]
+
 export default function SuggestionsTab({ resumeSections }: SuggestionsTabProps) {
-  const [selectedBullet, setSelectedBullet] = useState<string | null>(null);
-  const [improvedBullet, setImprovedBullet] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadingIdx, setLoadingIdx] = useState<number | null>(null)
+  const [selectedBullet, setSelectedBullet] = useState<string | null>(null)
+  const [improvedBullet, setImprovedBullet] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  // Get experience bullets
-  const experienceSection = resumeSections.find((s) => s.type === 'experience');
-  const experienceBullets = experienceSection?.bullets || [];
+  const experienceBullets =
+    resumeSections.find((s) => s.type === 'experience')?.bullets ?? []
 
-  const generateRewrite = async (bullet: string) => {
-    setIsLoading(true);
-    setError(null);
+  const handleRewrite = async (bullet: string, idx: number) => {
+    setLoadingIdx(idx)
+    setError(null)
     try {
-      const response = await fetch('/api/ai/rewrite', {
+      const res = await fetch('/api/ai/rewrite', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bullet }),
-      });
+      })
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to generate rewrite');
-      }
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to generate rewrite')
 
-      const data = await response.json();
-      setImprovedBullet(data.rewritten);
+      setSelectedBullet(bullet)
+      setImprovedBullet(data.rewritten)
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred';
-      setError(errorMessage);
-      console.error('Rewrite error:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
-      setIsLoading(false);
+      setLoadingIdx(null)
     }
-  };
+  }
+
+  const handleClose = () => {
+    setSelectedBullet(null)
+    setImprovedBullet(null)
+    setError(null)
+  }
 
   return (
     <div className="space-y-6">
-      {/* Introduction */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex gap-2">
-          <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-blue-900">
-            <p className="font-semibold mb-1">AI-Powered Rewrite Suggestions</p>
-            <p>Click "Rewrite" on any bullet point to get an improved version with stronger action verbs and metrics.</p>
-          </div>
+      {/* Intro */}
+      <div className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 p-4 flex gap-3">
+        <Sparkles className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+        <div className="text-sm text-cyan-100">
+          <p className="font-semibold mb-1">AI-Powered Rewrite Suggestions</p>
+          <p>Click "Rewrite" on any bullet point to get an improved version with stronger action verbs and metrics.</p>
         </div>
       </div>
 
-      {/* Experience Bullets */}
+      {/* Bullets */}
       {experienceBullets.length > 0 ? (
         <div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Experience Bullets</h3>
+          <h3 className="text-lg font-semibold text-white mb-4">Experience Bullets</h3>
           <div className="space-y-3">
             {experienceBullets.slice(0, 8).map((bullet, idx) => (
               <div
                 key={idx}
-                className="flex gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-colors group"
+                className="flex gap-3 p-4 bg-white/5 rounded-lg border border-white/10 hover:border-cyan-400/30 hover:bg-white/8 transition-colors"
               >
                 <div className="flex-1">
-                  <p className="text-sm text-slate-900">{bullet}</p>
+                  <p className="text-sm text-white/80">{bullet}</p>
                 </div>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={async () => {
-                    setSelectedBullet(bullet);
-                    await generateRewrite(bullet);
-                  }}
-                  className="flex-shrink-0 whitespace-nowrap bg-slate-900 text-white border-slate-900 hover:bg-slate-800 hover:border-slate-800"
-                  disabled={isLoading}
+                  onClick={() => handleRewrite(bullet, idx)}
+                  className="shrink-0 whitespace-nowrap border-white/20 bg-white/5 text-white hover:bg-cyan-500/20 hover:border-cyan-400/40"
+                  disabled={loadingIdx !== null}
                 >
-                  {isLoading ? (
+                  {loadingIdx === idx ? (
                     <>
                       <Loader className="w-4 h-4 mr-1 animate-spin" />
-                      Rewriting...
+                      Rewriting…
                     </>
                   ) : (
                     <>
@@ -99,15 +100,15 @@ export default function SuggestionsTab({ resumeSections }: SuggestionsTabProps) 
               </div>
             ))}
             {experienceBullets.length > 8 && (
-              <p className="text-sm text-slate-600 text-center py-4">
+              <p className="text-sm text-white/50 text-center py-2">
                 Showing 8 of {experienceBullets.length} bullets
               </p>
             )}
           </div>
         </div>
       ) : (
-        <div className="bg-slate-50 rounded-lg p-6 text-center">
-          <p className="text-sm text-slate-600">
+        <div className="rounded-lg bg-white/5 border border-white/10 p-6 text-center">
+          <p className="text-sm text-white/50">
             No experience bullets found. Add more detail to your experience section to get suggestions.
           </p>
         </div>
@@ -115,48 +116,34 @@ export default function SuggestionsTab({ resumeSections }: SuggestionsTabProps) 
 
       {/* Tips */}
       <div>
-        <h3 className="text-lg font-semibold text-slate-900 mb-3">Writing Better Bullets</h3>
-        <ul className="space-y-2 text-sm text-slate-700">
-          <li className="flex gap-2">
-            <span className="text-blue-600 font-bold">•</span>
-            <span>Start with strong action verbs (Led, Implemented, Optimized, etc.)</span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-blue-600 font-bold">•</span>
-            <span>Include quantifiable results when possible (%, $, numbers)</span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-blue-600 font-bold">•</span>
-            <span>Focus on impact and business value, not just tasks</span>
-          </li>
-          <li className="flex gap-2">
-            <span className="text-blue-600 font-bold">•</span>
-            <span>Keep bullets concise but descriptive (1-2 lines)</span>
-          </li>
+        <h3 className="text-lg font-semibold text-white mb-3">Writing Better Bullets</h3>
+        <ul className="space-y-2 text-sm text-white/70">
+          {WRITING_TIPS.map((tip, idx) => (
+            <li key={idx} className="flex gap-2">
+              <span className="text-cyan-400 font-bold shrink-0">•</span>
+              <span>{tip}</span>
+            </li>
+          ))}
         </ul>
       </div>
 
-      {/* Rewrite Modal */}
-      {selectedBullet && improvedBullet && (
-        <RewriteModal
-          originalBullet={selectedBullet}
-          improvedBullet={improvedBullet}
-          onClose={() => {
-            setSelectedBullet(null);
-            setImprovedBullet(null);
-            setError(null);
-          }}
-        />
-      )}
-
-      {/* Error State */}
+      {/* Error */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-sm text-red-900">
+        <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-4">
+          <p className="text-sm text-red-200">
             <span className="font-semibold">Error:</span> {error}
           </p>
         </div>
       )}
+
+      {/* Modal */}
+      {selectedBullet && improvedBullet && (
+        <RewriteModal
+          originalBullet={selectedBullet}
+          improvedBullet={improvedBullet}
+          onClose={handleClose}
+        />
+      )}
     </div>
-  );
+  )
 }

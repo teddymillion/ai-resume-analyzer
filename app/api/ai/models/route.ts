@@ -25,12 +25,22 @@ export async function GET() {
   }
 
   const data = await response.json();
-  const models = Array.isArray(data.models) ? data.models : [];
+  type GeminiModel = {
+    name: string
+    displayName: string
+    description: string
+    version: string
+    inputTokenLimit: number
+    outputTokenLimit: number
+    supportedGenerationMethods: string[]
+  }
+
+  const models: GeminiModel[] = Array.isArray(data.models) ? data.models : []
   const supported = models.filter((model) =>
     Array.isArray(model.supportedGenerationMethods)
       ? model.supportedGenerationMethods.includes('generateContent')
       : false,
-  );
+  )
 
   return NextResponse.json({
     total: models.length,
@@ -43,5 +53,5 @@ export async function GET() {
       outputTokenLimit: model.outputTokenLimit,
       supportedGenerationMethods: model.supportedGenerationMethods,
     })),
-  });
+  })
 }
