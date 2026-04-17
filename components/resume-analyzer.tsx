@@ -72,8 +72,8 @@ export default function ResumeAnalyzer() {
           ? `${data.error ?? 'Failed to analyze'} (${data.details})`
           : (data.error ?? 'Failed to analyze resume')
         throw new Error(
-          msg.includes('503') || msg.includes('high demand') || msg.includes('UNAVAILABLE')
-            ? 'Gemini is currently overloaded. Please wait a moment and try again.'
+          msg.includes('429') || msg.includes('rate-limit')
+            ? 'AI service is rate-limited. Please wait a moment and try again.'
             : msg,
         )
       }
@@ -223,7 +223,7 @@ export default function ResumeAnalyzer() {
             <div className="mb-12 text-center">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Powered by Gemini AI
+                Powered by Groq AI
               </div>
               <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
                 Your resume,{' '}
@@ -312,7 +312,7 @@ export default function ResumeAnalyzer() {
 
       {/* ── Footer ──────────────────────────────────────────────────────────── */}
       <footer className="relative z-10 border-t border-white/[0.06] py-6 text-center text-xs text-white/30">
-        © {new Date().getFullYear()} ResumeAI · Built with Gemini
+        © {new Date().getFullYear()} ResumeAI · Built with Groq + Hugging Face
       </footer>
     </div>
   )

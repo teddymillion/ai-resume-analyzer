@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
 import { FileText, Brain, Sparkles, ShieldCheck, CheckCircle2 } from 'lucide-react'
 
 const STEPS = [
-  { icon: FileText,    label: 'Reading your resume',         detail: 'Extracting text and structure…'         },
-  { icon: Brain,       label: 'Running AI analysis',         detail: 'Gemini is scoring your content…'        },
+  { icon: FileText,    label: 'Reading your resume',         detail: 'Extracting text locally…'              },
+  { icon: Brain,       label: 'Running AI analysis',         detail: 'Groq LLM is scoring your content…'     },
   { icon: Sparkles,    label: 'Detecting skill gaps',        detail: 'Comparing against industry standards…'  },
   { icon: ShieldCheck, label: 'Checking ATS compatibility',  detail: 'Scanning for parsing issues…'           },
   { icon: CheckCircle2,label: 'Finalising your report',      detail: 'Almost ready…'                         },
@@ -121,7 +121,7 @@ export default function AnalysisLoader() {
 
         {/* ── Retry notice ──────────────────────────────────────── */}
         <p className="mt-8 text-xs text-white/30">
-          If Gemini is busy we retry automatically — hang tight
+          Powered by Groq · text extracted locally · no file upload to AI
         </p>
       </div>
     </div>
